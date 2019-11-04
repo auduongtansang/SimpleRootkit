@@ -73,7 +73,7 @@ static int __init rand_init(void)
 {
     //Register device file
     misc_register(&randdev);
-    printk("Loaded.\n");
+    printk("[+] randlkm loaded.\n");
     return 0;
 }
 
@@ -82,7 +82,7 @@ static void __exit rand_exit(void)
 {
     //Unregister device file
     misc_deregister(&randdev);
-    printk("Unloaded.\n");
+    printk("[-] randlkm unloaded.\n");
     return;
 }
 
