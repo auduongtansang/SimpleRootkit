@@ -14,6 +14,7 @@ void **sys_call_table_addr;
 
 //Pointer to original syscalls
 asmlinkage int (*original_open)(const char*, int);
+asmlinkage ssize_t (*original_write)(int, const void*, size_t);
 
 //New syscall open()
 asmlinkage int new_open(const char *pathname, int flags)
@@ -26,6 +27,17 @@ asmlinkage int new_open(const char *pathname, int flags)
 	//Logging and return original open()
     printk(KERN_INFO "[**] %s has called open() on %s.\n", current->comm, path);
     return original_open(pathname, flags);
+}
+
+//New syscall write()
+asmlinkage ssize_t new_write(int fd, const void *buf, size_t count)
+{
+	//Call original write() and get number of bytes written
+	ssize_t ret = original_write(fd, buf, count);
+	
+	//Logging and return ret
+    printk(KERN_INFO "[**] %s has called write(), written %d bytes.\n", current->comm, ret);
+    return ret;
 }
 
 //Make the page writable
@@ -58,6 +70,8 @@ static int __init hooker_init(void)
     //Store original syscalls and replace by the new ones
     original_open = sys_call_table_addr[__NR_open];
     sys_call_table_addr[__NR_open] = new_open;
+	original_write = sys_call_table_addr[__NR_write];
+    sys_call_table_addr[__NR_write] = new_write;
 
     //Re-enable write-protection
     write_cr0(read_cr0() | 0x10000);
@@ -76,6 +90,7 @@ static void __exit hooker_exit(void)
 
     //Restore original syscalls
     sys_call_table_addr[__NR_open] = original_open;
+	sys_call_table_addr[__NR_write] = original_write;
 
     //Re-enable write-protection
     write_cr0(read_cr0() | 0x10000);
