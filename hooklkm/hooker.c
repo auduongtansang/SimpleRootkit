@@ -1,23 +1,31 @@
 #include <linux/module.h>  //...
-#include <asm/unistd.h>  //__NR macro
+#include <asm/unistd.h>  //__NR_open, __NR_write
 #include <linux/init.h>  //module_init(), module_exit()
+#include <linux/sched.h>  //current pointer
+#include <linux/uaccess.h>  //copy_from_user()
 #include <linux/kallsyms.h>  //kallsyms_lookup_name()
 
 MODULE_AUTHOR("Au Duong Tan Sang 1712145");
-MODULE_DESCRIPTION("Simple hooker LKM");
+MODULE_DESCRIPTION("Hooker LKM");
 MODULE_LICENSE("GPL");
 
 //sys_call_table address
 void **sys_call_table_addr;
 
 //Pointer to original syscalls
-asmlinkage int (*original_openat)(int, const char*, int);
+asmlinkage int (*original_open)(const char*, int);
 
-//New syscall openat()
-asmlinkage int new_openat(int dirfd, const char *pathname, int flags)
+//New syscall open()
+asmlinkage int new_open(const char *pathname, int flags)
 {
-    printk("[**] Opened.\n");
-    return original_openat(dirfd, pathname, flags);
+	//Copy file path argument from user-land
+	char path[512];
+	copy_from_user(path, pathname, strlen(pathname));
+	path[strlen(pathname)] = '\0';
+	
+	//Logging and return original open()
+    printk(KERN_INFO "[**] %s has called open() on %s.\n", current->comm, path);
+    return original_open(pathname, flags);
 }
 
 //Make the page writable
@@ -48,8 +56,8 @@ static int __init hooker_init(void)
     make_page_rw((unsigned long)sys_call_table_addr);
 
     //Store original syscalls and replace by the new ones
-    original_openat = sys_call_table_addr[__NR_openat];
-    sys_call_table_addr[__NR_openat] = new_openat;
+    original_open = sys_call_table_addr[__NR_open];
+    sys_call_table_addr[__NR_open] = new_open;
 
     //Re-enable write-protection
     write_cr0(read_cr0() | 0x10000);
@@ -67,7 +75,7 @@ static void __exit hooker_exit(void)
     make_page_rw((unsigned long)sys_call_table_addr);
 
     //Restore original syscalls
-    sys_call_table_addr[__NR_openat] = original_openat;
+    sys_call_table_addr[__NR_open] = original_open;
 
     //Re-enable write-protection
     write_cr0(read_cr0() | 0x10000);
