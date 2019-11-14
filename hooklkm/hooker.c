@@ -1,4 +1,5 @@
 #include <linux/module.h>  //...
+#include <asm/unistd.h>  //__NR macro
 #include <linux/init.h>  //module_init(), module_exit()
 #include <linux/kallsyms.h>  //kallsyms_lookup_name()
 
@@ -8,6 +9,16 @@ MODULE_LICENSE("GPL");
 
 //sys_call_table address
 void **sys_call_table_addr;
+
+//Pointer to original syscalls
+asmlinkage int (*original_openat)(int, const char*, int);
+
+//New syscall openat()
+asmlinkage int new_openat(int dirfd, const char *pathname, int flags)
+{
+    printk("[**] Opened.\n");
+    return original_openat(dirfd, pathname, flags);
+}
 
 //Make the page writable
 void make_page_rw(unsigned long addr)
@@ -36,6 +47,10 @@ static int __init hooker_init(void)
     write_cr0(read_cr0() & (~0x10000));
     make_page_rw((unsigned long)sys_call_table_addr);
 
+    //Store original syscalls and replace by the new ones
+    original_openat = sys_call_table_addr[__NR_openat];
+    sys_call_table_addr[__NR_openat] = new_openat;
+
     //Re-enable write-protection
     write_cr0(read_cr0() | 0x10000);
     make_page_ro((unsigned long)sys_call_table_addr);
@@ -47,6 +62,17 @@ static int __init hooker_init(void)
 //LKM unloader
 static void __exit hooker_exit(void)
 {
+    //Disable write-protection
+    write_cr0(read_cr0() & (~0x10000));
+    make_page_rw((unsigned long)sys_call_table_addr);
+
+    //Restore original syscalls
+    sys_call_table_addr[__NR_openat] = original_openat;
+
+    //Re-enable write-protection
+    write_cr0(read_cr0() | 0x10000);
+    make_page_ro((unsigned long)sys_call_table_addr);
+
     printk("[-] hooker unloaded.\n");
     return;
 }
