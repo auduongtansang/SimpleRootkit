@@ -1,5 +1,5 @@
-#include <linux/random.h>  //get_random_bytes()
 #include <linux/module.h>  //...
+#include <linux/random.h>  //get_random_bytes()
 #include <linux/fs.h>  //file_operations structure
 #include <linux/init.h>  //module_init(), module_exit()
 #include <linux/uaccess.h>  //copy_to_user()
@@ -37,7 +37,7 @@ void NumToChar(unsigned int num, char cha[])
     cha[cnt] = '\0';
 }
 
-//Occur when user applications call read()
+//Occur when an user application call read()
 ssize_t user_read(struct file *fp, char *buf, size_t cnt, loff_t *of)
 {
     //Generate some random bytes and change them to characters
@@ -73,6 +73,7 @@ static int __init rand_init(void)
 {
     //Register device file
     misc_register(&randdev);
+	
     printk("[+] randlkm loaded.\n");
     return 0;
 }
@@ -82,6 +83,7 @@ static void __exit rand_exit(void)
 {
     //Unregister device file
     misc_deregister(&randdev);
+	
     printk("[-] randlkm unloaded.\n");
     return;
 }
